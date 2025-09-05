@@ -1,6 +1,6 @@
 // pages/api/payment/verify.js
 import crypto from "crypto";
-import clientPromise from "../../../lib/mongodb";
+import { mongoClientPromise as clientPromise } from "@/app/database/mongodb";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -38,8 +38,8 @@ export default async function handler(req, res) {
 
     // Insert transaction
     const tx = {
-      userId: new require("mongodb").ObjectId(userId),
-      subscriptionId: new require("mongodb").ObjectId(subscriptionId),
+      userId: new require("mongoose").Types.ObjectId(userId),
+      subscriptionId: new require("mongoose").Types.ObjectId(subscriptionId),
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id,
       amount: req.body.amount || null,
@@ -72,13 +72,12 @@ export default async function handler(req, res) {
 
     // Upsert userSubscriptions doc (one doc per user)
     const userSubsColl = db.collection("userSubscriptions");
-    await userSubsColl.updateOne(
-      { userId: new require("mongodb").ObjectId(userId) },
+    await userSubsColl.updateOne({ userId: new require("mongoose").Types.ObjectId(userId) },
       {
         $push: {
           subscriptions: {
             subscriptionId: new require("mongodb").ObjectId(subscriptionId),
-            classId: new require("mongodb").ObjectId(classId),
+            classId: new require("mongoose").Types.ObjectId(classId),
             startDate,
             expireDate,
             status: "active",

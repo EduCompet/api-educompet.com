@@ -1,7 +1,7 @@
 // src/app/api/(users)/getUsersDataWithId/route.js
 import { NextResponse } from "next/server";
-import connectdb from "@/app/database/mongodb";
-import UserModel from "@/app/models/usersDataModel/schema";
+import {connectdb} from "@/app/database/mongodb";
+import UserModel from "@/app/model/userDataModel/schema";
 import { headers } from "next/headers";
 import mongoose from "mongoose";
 import { handleOptions, withCors } from "@/app/utils/cors";

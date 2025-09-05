@@ -1,5 +1,5 @@
 // pages/api/content/get-signed-url.js
-import clientPromise from "../../../lib/mongodb";
+import { mongoClientPromise as clientPromise } from "@/app/database/mongodb";
 import { bucket } from "@/app/service/storageConnection/storageConnection";
 import { ObjectId } from "mongodb";
 
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const db = client.db(process.env.DB_NAME);
 
     // check active subscription in userSubscriptions
-    const userSubs = await db.collection("userSubscriptions").findOne({ userId: new ObjectId(userId) });
+    const userSubs = await db.collection("userSubscriptions").findOne({userId: new require("mongoose").Types.ObjectId(userId) });
     if (!userSubs || !Array.isArray(userSubs.subscriptions)) return res.status(403).json({ error: "not subscribed" });
 
     const now = new Date();
