@@ -6,7 +6,9 @@ const { Schema, models, model } = mongoose;
 const UserSubscriptionItemSchema = new Schema(
   {
     subscriptionId: {
-      type:String,
+      type: Schema.Types.ObjectId,
+      ref: "Subscription",
+      required: true,
     },
     classId: { type: Schema.Types.ObjectId, ref: "Class", required: true },
     startDate: { type: Date, required: true },
@@ -17,29 +19,28 @@ const UserSubscriptionItemSchema = new Schema(
       default: "active",
     },
   },
-  { _id: false } // array items don’t need their own _id
+  { _id: false }
 );
 
 const UserSubscriptionSchema = new Schema(
   {
     userId: {
-      type: String, // Changed from ObjectId
+      // 👇 CHANGE THIS FROM STRING TO OBJECTID
+      type: Schema.Types.ObjectId,
+      ref: "User",
       unique: true,
       required: true,
-    }, // one doc per user
+    },
     subscriptions: [UserSubscriptionItemSchema],
   },
-  { timestamps: { createdAt: true, updatedAt: true } } // auto-manages updatedAt
+  { timestamps: { createdAt: true, updatedAt: true } }
 );
 
-// ✅ Indexes
-UserSubscriptionSchema.index({ userId: 1 }, { unique: true }); // one doc per user
 UserSubscriptionSchema.index(
   { "subscriptions.status": 1, "subscriptions.expireDate": 1 },
   { partialFilterExpression: { "subscriptions.status": "active" } }
-); // for expiry queries
+);
 
-// Prevent OverwriteModelError
 const UserSubscriptionModel =
   models.UserSubscription || model("UserSubscription", UserSubscriptionSchema);
 

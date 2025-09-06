@@ -1,13 +1,10 @@
-// src/app/api/users/loginOrSignUp/route.js
 import { NextResponse } from "next/server";
 import { connectdb } from "@/app/database/mongodb";
 import UserModel from "@/app/model/userDataModel/schema";
-import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema"; // Import the subscription model
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
 export const dynamic = "force-dynamic";
-
 const xkey = process.env.API_AUTH_KEY;
 
 export async function OPTIONS() {
@@ -21,7 +18,10 @@ export const POST = async (req) => {
   if (xkey !== reqApiKey) {
     return withCors(
       NextResponse.json(
-        { success: false, message: "Invalid API Auth Key" },
+        {
+          success: false,
+          message: "Invalid API Auth Key",
+        },
         { status: 401 }
       )
     );
@@ -30,69 +30,102 @@ export const POST = async (req) => {
   try {
     await connectdb();
     const data = await req.json();
-    const { email, fullName, photoUrl, dob, phone, referralCode } = data;
+    const {
+      firebaseUid,
+      email,
+      fullName,
+      photoUrl,
+      dob,
+      phone,
+      referralCode,
+      fcmToken,
+    } = data;
 
-    if (!email) {
+    if (!firebaseUid || !email) {
       return withCors(
-        NextResponse.json({ success: false, message: "Email is required." }, { status: 400 })
+        NextResponse.json(
+          {
+            success: false,
+            message: "Firebase UID and email are required.",
+          },
+          { status: 400 }
+        )
       );
     }
 
-    let user = await UserModel.findOne({ email });
+    let existingUser = await UserModel.findOne({ firebaseUid: firebaseUid });
 
-    if (user) {
-      // --- EXISTING USER ---
-      user.lastLogin = new Date(); // Update last login time
-      await user.save();
+    if (existingUser) {
+      const updateData = {
+        lastLogin: new Date(),
+        ...(fullName && { fullName }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(photoUrl && { photoUrl }),
+        ...(dob && { dob }),
+        ...(fcmToken && { fcmToken }),
+      };
+
+      const updatedUser = await UserModel.findOneAndUpdate(
+        { firebaseUid: firebaseUid },
+        { $set: updateData },
+        { new: true, runValidators: true }
+      );
 
       return withCors(
         NextResponse.json(
-          { success: true, message: "User logged in successfully.", data: user },
+          {
+            success: true,
+            message: "User details updated successfully.",
+            data: updatedUser,
+            isNewUser: false,
+          },
           { status: 200 }
         )
       );
-    } else {
-      // --- NEW USER ---
-      const newUserDetails = {
-        fullName,
-        email,
-        photoUrl,
-        dob,
-        phone,
-        lastLogin: new Date(), // ✅ Set lastLogin for new users
-      };
-
-      // ✅ Process the referral code if it exists
-      if (referralCode) {
-        const referringUser = await UserModel.findOne({ referralCode: referralCode });
-        if (referringUser) {
-          // If a user with that code is found, save their ID
-          newUserDetails.referralId = referringUser._id;
-        }
-      }
-
-      const newUser = await UserModel.create(newUserDetails);
-      
-      // Create an empty subscription document for the new user
-      await UserSubscriptionModel.create({
-        userId: newUser._id,
-        subscriptions: [],
-      });
-
-
-      return withCors(
-        NextResponse.json(
-          { success: true, message: "User created successfully.", data: newUser },
-          { status: 201 }
-        )
-      );
     }
-  } catch (error) {
-    console.error("Error in loginOrSignUp:", error);
+
+    const newUser = await UserModel.create({
+      firebaseUid,
+      email,
+      fullName,
+      photoUrl,
+      dob,
+      phone,
+      referralCode,
+      fcmToken,
+    });
+
     return withCors(
       NextResponse.json(
-        { success: false, message: error.message || "Internal Server Error" },
-        { status: 500 }
+        {
+          success: true,
+          message: "User created successfully.",
+          data: newUser,
+          isNewUser: true,
+        },
+        { status: 201 }
+      )
+    );
+  } catch (error) {
+    let message = "Internal Server Error";
+    let statusCode = 500;
+
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyValue)[0];
+      message = `A user with this ${duplicateField} already exists.`;
+      statusCode = 409;
+    } else if (error.message) {
+      message = error.message;
+    }
+
+    return withCors(
+      NextResponse.json(
+        {
+          success: false,
+          message,
+        },
+        { status: statusCode }
       )
     );
   }
