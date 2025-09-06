@@ -11,10 +11,9 @@ export async function OPTIONS() {
 }
 
 export const POST = async (req) => {
-  const headerList = await headers(); // ✅ Add await here
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
-  // API Key validation
   if (xkey !== reqApiKey) {
     return withCors(
       NextResponse.json(
@@ -33,9 +32,8 @@ export const POST = async (req) => {
       );
     }
 
-    // Razorpay expects the amount in the smallest currency unit (e.g., paise for INR)
     const orderOptions = {
-      amount: Math.round(amount), // Amount is already in paise from the Flutter app
+      amount: Math.round(amount),
       currency,
       receipt: receipt || `rcpt_${Date.now()}`,
     };

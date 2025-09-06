@@ -1,6 +1,8 @@
+// src/app/api/(users)/loginOrSignUp/route.js
 import { NextResponse } from "next/server";
 import { connectdb } from "@/app/database/mongodb";
 import UserModel from "@/app/model/userDataModel/schema";
+import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
@@ -96,6 +98,13 @@ export const POST = async (req) => {
       fcmToken,
     });
 
+    // Create an empty user subscription document
+    await UserSubscriptionModel.create({
+      userId: newUser._id,
+      subscriptions: [],
+    });
+
+
     return withCors(
       NextResponse.json(
         {
@@ -119,6 +128,7 @@ export const POST = async (req) => {
       message = error.message;
     }
 
+    console.error("Error in loginOrSignUp:", error);
     return withCors(
       NextResponse.json(
         {

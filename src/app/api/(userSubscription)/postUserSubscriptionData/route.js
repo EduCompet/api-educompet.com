@@ -1,6 +1,8 @@
+// src/app/api/(userSubscription)/postUserSubscriptionData/route.js
 import { NextResponse } from "next/server";
 import { connectdb } from "@/app/database/mongodb";
 import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
+import UserModel from "@/app/model/userDataModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
@@ -12,12 +14,11 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
-// ✅ POST: Add or update a user's subscription
-export const POST = async (req) => {
-  const headerList =await headers();
+// ✅ Changed from POST to PUT for updating an existing document
+export const PUT = async (req) => {
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
-  // 🔑 Validate API key
   if (xkey !== reqApiKey) {
     return withCors(NextResponse.json(
       { success: false, message: "Invalid API Auth Key" },
@@ -28,50 +29,50 @@ export const POST = async (req) => {
   try {
     await connectdb();
 
-    const { userId, subscriptionId, classId, startDate, expireDate, status } =
-      await req.json();
+    const body = await req.json();
+    const { firebaseUid, subscriptionId, classId, startDate, expireDate, status } = body;
 
-    if (!userId || !subscriptionId || !classId || !startDate || !expireDate) {
+    if (!firebaseUid || !subscriptionId || !classId || !startDate || !expireDate) {
       return withCors(NextResponse.json(
         { success: false, message: "Missing required fields" },
         { status: 400 }
       ));
     }
 
-    // Check if user already has a subscription document
-    let userSubDoc = await UserSubscriptionModel.findOne({ userId });
-
-    if (!userSubDoc) {
-      // create new doc
-      userSubDoc = new UserSubscriptionModel({
-        userId,
-        subscriptions: [
-          { subscriptionId, classId, startDate, expireDate, status },
-        ],
-      });
-    } else {
-      // push new subscription item
-      userSubDoc.subscriptions.push({
-        subscriptionId,
-        classId,
-        startDate,
-        expireDate,
-        status,
-      });
+    const user = await UserModel.findOne({ firebaseUid });
+    if (!user) {
+      return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
     }
 
-    await userSubDoc.save();
+    const userId = user._id;
+
+    // ✅ Find the existing document and push the new subscription into the array
+    const updatedUserSubDoc = await UserSubscriptionModel.findOneAndUpdate(
+      { userId: userId },
+      {
+        $push: {
+          subscriptions: {
+            subscriptionId,
+            classId,
+            startDate,
+            expireDate,
+            status,
+          },
+        },
+      },
+      { new: true, upsert: true } // `upsert: true` creates the doc if it somehow doesn't exist
+    );
 
     return withCors(NextResponse.json(
       {
         success: true,
         message: "Subscription added successfully",
-        data: userSubDoc,
+        data: updatedUserSubDoc,
       },
-      { status: 201 }
+      { status: 200 } // Status 200 for update
     ));
   } catch (error) {
-    console.error("Error posting user subscription:", error);
+    console.error("Error updating user subscription:", error);
     return withCors(NextResponse.json(
       { success: false, message: error.message || "Internal Server Error" },
       { status: 500 }

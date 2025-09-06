@@ -1,41 +1,71 @@
-// pages/api/content/get-signed-url.js
-import { mongoClientPromise as clientPromise } from "@/app/database/mongodb";
+// src/app/api/(content)/get-signed-url/route.js
+import { NextResponse } from "next/server";
+import { connectdb } from "@/app/database/mongodb";
 import { bucket } from "@/app/service/storageConnection/storageConnection";
-import { ObjectId } from "mongodb";
+import UserModel from "@/app/model/userDataModel/schema";
+import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
+import { headers } from "next/headers";
+import { handleOptions, withCors } from "@/app/utils/cors";
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
+export const dynamic = "force-dynamic";
+const xkey = process.env.API_AUTH_KEY;
+
+export async function OPTIONS() {
+  return handleOptions();
+}
+
+export const POST = async (req) => {
+  const headerList = await headers();
+  const reqApiKey = headerList.get("x-api-key");
+
+  if (xkey !== reqApiKey) {
+    return withCors(NextResponse.json({ success: false, message: "Invalid API Auth Key" }, { status: 401 }));
+  }
 
   try {
-    const { userId, classId, filePath } = req.body;
-    if (!userId || !classId || !filePath) return res.status(400).json({ error: "userId, classId, filePath required" });
+    await connectdb();
+    const { firebaseUid, classId, filePath } = await req.json();
 
-    const client = await clientPromise;
-    const db = client.db(process.env.DB_NAME);
+    if (!firebaseUid || !classId || !filePath) {
+      return withCors(NextResponse.json({ success: false, message: "firebaseUid, classId, and filePath are required." }, { status: 400 }));
+    }
 
-    // check active subscription in userSubscriptions
-    const userSubs = await db.collection("userSubscriptions").findOne({userId: new require("mongoose").Types.ObjectId(userId) });
-    if (!userSubs || !Array.isArray(userSubs.subscriptions)) return res.status(403).json({ error: "not subscribed" });
+    // 1. Find the user by their Firebase UID
+    const user = await UserModel.findOne({ firebaseUid });
+    if (!user) {
+      return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
+    }
+
+    // 2. Check if the user has an active subscription for the requested class
+    const userSubDoc = await UserSubscriptionModel.findOne({ userId: user._id });
+    if (!userSubDoc || !userSubDoc.subscriptions) {
+      return withCors(NextResponse.json({ success: false, message: "You do not have an active subscription." }, { status: 403 }));
+    }
 
     const now = new Date();
-    const hasActive = userSubs.subscriptions.some((s) => {
-      return s.classId.toString() === classId.toString() && s.status === "active" && new Date(s.expireDate) >= now;
-    });
+    const hasActiveSubForClass = userSubDoc.subscriptions.some(sub =>
+      sub.classId.toString() === classId &&
+      sub.status === 'active' &&
+      sub.expireDate > now
+    );
 
-    if (!hasActive) return res.status(403).json({ error: "no active subscription for this class" });
+    if (!hasActiveSubForClass) {
+      return withCors(NextResponse.json({ success: false, message: "Your subscription for this class has expired or is inactive." }, { status: 403 }));
+    }
 
-    // Generate signed URL
-    const file = bucket.file(filePath); // e.g. "class_<id>/math/algebra.pdf"
-    const expires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    // 3. If authorized, generate a signed URL for the file
+    const file = bucket.file(filePath);
+    const expiration = Date.now() + 15 * 60 * 1000; // URL expires in 15 minutes
 
-    const [url] = await file.getSignedUrl({
+    const [signedUrl] = await file.getSignedUrl({
       action: "read",
-      expires,
+      expires: expiration,
     });
 
-    res.status(200).json({ signedUrl: url, expiresAt: expires });
-  } catch (err) {
-    console.error("signed-url err:", err);
-    res.status(500).json({ error: err.message });
+    return withCors(NextResponse.json({ success: true, url: signedUrl }, { status: 200 }));
+
+  } catch (error) {
+    console.error("Error generating signed URL:", error);
+    return withCors(NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 }));
   }
-}
+};

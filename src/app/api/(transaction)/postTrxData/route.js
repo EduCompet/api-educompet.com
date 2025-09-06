@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { connectdb } from "@/app/database/mongodb";
 import TransactionModel from "@/app/model/transactionModel/schema.js";
-import UserModel from "@/app/model/userDataModel/schema.js"; // Import UserModel
+import UserModel from "@/app/model/userDataModel/schema.js";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
@@ -38,14 +38,13 @@ export const POST = async (req) => {
       ));
     }
 
-    // Find the user by their Firebase UID to get the MongoDB ObjectId
     const user = await UserModel.findOne({ firebaseUid: firebaseUid });
     if (!user) {
       return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
     }
 
     const newTransaction = await TransactionModel.create({
-      userId: user._id, // Use the correct MongoDB ObjectId
+      userId: user._id,
       subscriptionId,
       razorpayOrderId,
       razorpayPaymentId,
