@@ -1,6 +1,6 @@
 // app/api/getAdminDataWithEmail/route.js
 import { NextResponse } from 'next/server';
-import { connectdb } from "@/app/database/mongodb";
+import { connectdb } from '@/app/database/mongodb';
 import AdminModel from '@/app/model/adminDataModel/schema';
 import { headers } from 'next/headers';
 import { handleOptions, withCors } from "@/app/utils/cors";
