@@ -18,6 +18,8 @@ const UserSubscriptionItemSchema = new Schema(
       enum: ["active", "expired", "cancelled"],
       default: "active",
     },
+    durationMonths: { type: Number, required: true },
+    amountPaid: { type: Number, required: true },
   },
   { _id: false }
 );
@@ -25,7 +27,6 @@ const UserSubscriptionItemSchema = new Schema(
 const UserSubscriptionSchema = new Schema(
   {
     userId: {
-      // 👇 CHANGE THIS FROM STRING TO OBJECTID
       type: Schema.Types.ObjectId,
       ref: "User",
       unique: true,

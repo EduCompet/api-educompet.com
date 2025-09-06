@@ -5,6 +5,7 @@ import UserModel from "@/app/model/userDataModel/schema";
 import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
+import admin from "@/app/utils/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 const xkey = process.env.API_AUTH_KEY;
@@ -58,6 +59,25 @@ export const POST = async (req) => {
     let existingUser = await UserModel.findOne({ firebaseUid: firebaseUid });
 
     if (existingUser) {
+      const oldFcmToken = existingUser.fcmToken;
+      // If there's a new token and it's different from the old one, send a logout notification
+      if (fcmToken && oldFcmToken && oldFcmToken !== fcmToken) {
+        const message = {
+          token: oldFcmToken,
+          data: {
+            type: "LOGOUT",
+            message: "You have been logged out because you signed in on another device.",
+          },
+        };
+        try {
+          console.log(`Sending logout notification to token: ${oldFcmToken}`);
+          await admin.messaging().send(message);
+        } catch (error) {
+          console.error("Failed to send logout notification:", error.message);
+          // Important: Don't block the login if sending the notification fails
+        }
+      }
+
       const updateData = {
         lastLogin: new Date(),
         ...(fullName && { fullName }),

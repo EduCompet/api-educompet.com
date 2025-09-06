@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import {connectdb} from "@/app/database/mongodb";
 import UserModel from "@/app/model/userDataModel/schema";
 import { headers } from "next/headers";
-import mongoose from "mongoose";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +14,7 @@ export async function OPTIONS() {
 }
 
 export const GET = async (req) => {
-  const headerList = headers();
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
   if (xkey !== reqApiKey) {
@@ -29,16 +28,16 @@ export const GET = async (req) => {
     await connectdb();
 
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("Id");
+    const firebaseUid = searchParams.get("Id");
 
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    if (!firebaseUid) {
       return withCors(NextResponse.json(
-        { success: false, message: "Valid userId is required." },
+        { success: false, message: "Valid Id is required." },
         { status: 400 }
       ));
     }
 
-    const user = await UserModel.findById(userId).select("-password -__v").lean();
+    const user = await UserModel.findOne({ firebaseUid: firebaseUid }).select("-password -__v").lean();
 
     if (!user) {
       return withCors(NextResponse.json(

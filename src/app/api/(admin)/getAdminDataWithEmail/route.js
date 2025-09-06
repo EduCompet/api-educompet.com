@@ -13,7 +13,7 @@ export async function OPTIONS() {
 }
 
 export const GET = async (req) => {
-  const headerList = headers();
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
   if (xkey !== reqApiKey) {

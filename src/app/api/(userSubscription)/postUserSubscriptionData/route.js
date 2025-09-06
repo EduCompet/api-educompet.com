@@ -14,7 +14,6 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
-// ✅ Changed from POST to PUT for updating an existing document
 export const PUT = async (req) => {
   const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
@@ -30,9 +29,9 @@ export const PUT = async (req) => {
     await connectdb();
 
     const body = await req.json();
-    const { firebaseUid, subscriptionId, classId, startDate, expireDate, status } = body;
+    const { firebaseUid, subscriptionId, classId, startDate, expireDate, status, durationMonths, amountPaid } = body;
 
-    if (!firebaseUid || !subscriptionId || !classId || !startDate || !expireDate) {
+    if (!firebaseUid || !subscriptionId || !classId || !startDate || !expireDate || durationMonths == null || amountPaid == null ) {
       return withCors(NextResponse.json(
         { success: false, message: "Missing required fields" },
         { status: 400 }
@@ -46,7 +45,6 @@ export const PUT = async (req) => {
 
     const userId = user._id;
 
-    // ✅ Find the existing document and push the new subscription into the array
     const updatedUserSubDoc = await UserSubscriptionModel.findOneAndUpdate(
       { userId: userId },
       {
@@ -57,10 +55,12 @@ export const PUT = async (req) => {
             startDate,
             expireDate,
             status,
+            durationMonths,
+            amountPaid,
           },
         },
       },
-      { new: true, upsert: true } // `upsert: true` creates the doc if it somehow doesn't exist
+      { new: true, upsert: true }
     );
 
     return withCors(NextResponse.json(
@@ -69,7 +69,7 @@ export const PUT = async (req) => {
         message: "Subscription added successfully",
         data: updatedUserSubDoc,
       },
-      { status: 200 } // Status 200 for update
+      { status: 200 }
     ));
   } catch (error) {
     console.error("Error updating user subscription:", error);
