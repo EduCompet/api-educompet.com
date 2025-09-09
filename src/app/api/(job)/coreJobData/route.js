@@ -13,34 +13,47 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
-export const GET = async () => {
+export const GET = async (req) => {
   const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
-  // API Key validation
   if (xkey !== reqApiKey) {
     return withCors(
-      NextResponse.json(
-        { success: false, message: "Invalid API Auth Key" },
-        { status: 401 }
-      )
+      NextResponse.json({ success: false, message: "Invalid API Auth Key" }, { status: 401 })
     );
   }
 
   try {
     await connectdb();
 
-    const jobs = await JobModel.find({})
-      .populate("createdBy", "fullName email")
-      .sort({ createdAt: -1 })
-      .lean();
+    // ✅ Pagination logic starts here
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const skip = (page - 1) * limit;
+
+    // Get the paginated jobs and the total count in parallel
+    const [jobs, totalJobs] = await Promise.all([
+      JobModel.find({})
+        .populate("createdBy", "fullName email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      JobModel.countDocuments({})
+    ]);
 
     return withCors(
       NextResponse.json(
         {
           success: true,
-          message: "All jobs fetched successfully.",
-          data: jobs,
+          message: "Jobs fetched successfully.",
+          data: {
+            jobs,
+            totalJobs,
+            currentPage: page,
+            totalPages: Math.ceil(totalJobs / limit),
+          },
         },
         { status: 200 }
       )
@@ -48,10 +61,7 @@ export const GET = async () => {
   } catch (error) {
     console.error("Error fetching jobs:", error);
     return withCors(
-      NextResponse.json(
-        { success: false, message: error.message || "Internal Server Error" },
-        { status: 500 }
-      )
+      NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 })
     );
   }
 };

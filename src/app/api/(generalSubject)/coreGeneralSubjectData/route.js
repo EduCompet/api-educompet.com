@@ -1,51 +1,74 @@
-// src/app/api/(generalSubject)/coreGeneralSubjectData/route.js
 import { NextResponse } from "next/server";
-import {connectdb} from "@/app/database/mongodb";
+import { connectdb } from "@/app/database/mongodb";
 import GeneralSubjectModel from "@/app/model/generalSubjectDataModel/schema";
+import UserModel from "@/app/model/userDataModel/schema";
+import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
+import admin from "@/app/utils/firebaseAdmin";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
-export const dynamic = "force-dynamic";
+// ✅ Import all necessary models
+import AdminModel from "@/app/model/adminDataModel/schema";
+import ClassModel from "@/app/model/classDataModel/schema";
 
-const xkey = process.env.API_AUTH_KEY;
+export const dynamic = "force-dynamic";
 
 export async function OPTIONS() {
   return handleOptions();
 }
 
 export const GET = async () => {
-  const headerList =await headers();
-  const reqApiKey = headerList.get("x-api-key");
-
-  if (xkey !== reqApiKey) {
-    return withCors(NextResponse.json(
-      { success: false, message: "Invalid API Auth Key" },
-      { status: 401 }
-    ));
-  }
-
   try {
     await connectdb();
+    const authToken = (headers().get("authorization") || "").split("Bearer ")[1];
 
-    const subjects = await GeneralSubjectModel.find()
-      .populate("createdBy", "fullName email") // show admin info
-      .populate("allowedClassIds", "name") // show class names if whitelist
+    let userHasActiveSubscription = false;
+
+    // ✅ Check for an active subscription if a user is logged in
+    if (authToken) {
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(authToken);
+        const user = await UserModel.findOne({ firebaseUid: decodedToken.uid });
+
+        if (user) {
+          const userSubDoc = await UserSubscriptionModel.findOne({ userId: user._id });
+          if (userSubDoc) {
+            userHasActiveSubscription = userSubDoc.subscriptions.some(
+              (sub) => sub.status === 'active' && sub.expireDate > new Date()
+            );
+          }
+        }
+      } catch (error) {
+        // Token is invalid or expired, treat as a non-subscriber
+        console.warn("Auth token validation failed:", error.message);
+      }
+    }
+
+    // ✅ Build the query based on subscription status
+    let query = { isActive: true };
+    if (!userHasActiveSubscription) {
+      // If no active subscription, only show subjects marked as 'all'
+      query.visibility = 'all';
+    }
+    // If they have a subscription, the query remains { isActive: true }, fetching all subjects.
+
+    const subjects = await GeneralSubjectModel.find(query)
+      .populate("createdBy", "fullName email")
+      .populate("allowedClassIds", "name")
       .sort({ createdAt: -1 })
       .lean();
 
-    return withCors(NextResponse.json(
-      {
+    return withCors(
+      NextResponse.json({
         success: true,
         message: "General subjects fetched successfully.",
         data: subjects,
-      },
-      { status: 200 }
-    ));
+      })
+    );
   } catch (error) {
     console.error("Error fetching general subjects:", error);
-    return withCors(NextResponse.json(
-      { success: false, message: error.message || "Internal Server Error" },
-      { status: 500 }
-    ));
+    return withCors(
+      NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 })
+    );
   }
 };

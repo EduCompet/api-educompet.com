@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import {connectdb} from "@/app/database/mongodb";
+import { connectdb } from "@/app/database/mongodb";
 import ChapterModel from "@/app/model/chapterDataModel/schema";
+// ✅ Import the missing models to fix the crash
+import SubjectModel from "@/app/model/subjectDataModel/schema";
+import AdminModel from "@/app/model/adminDataModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
@@ -13,7 +16,7 @@ export async function OPTIONS() {
 }
 
 export const GET = async (req) => {
-  const headerList =await headers();
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
   // ✅ API Key check
@@ -49,10 +52,11 @@ export const GET = async (req) => {
       return withCors(
         NextResponse.json(
           {
-            success: false,
+            success: true, // Return success so the app shows "No chapters found"
+            data: [],
             message: "No chapters found for the provided subjectId.",
           },
-          { status: 404 }
+          { status: 200 }
         )
       );
     }

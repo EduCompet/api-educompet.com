@@ -1,8 +1,9 @@
 // src/app/api/(class)/coreClassData/route.js
 import { NextResponse } from "next/server";
-import {connectdb} from "@/app/database/mongodb";
+import { connectdb } from "@/app/database/mongodb";
 import ClassModel from "@/app/model/classDataModel/schema";
 import { headers } from "next/headers";
+// ✅ Import the missing AdminModel to fix the crash
 import AdminModel from "@/app/model/adminDataModel/schema";
 import { handleOptions, withCors } from "@/app/utils/cors";
 
@@ -15,7 +16,7 @@ export async function OPTIONS() {
 }
 
 export const GET = async () => {
-  const headerList =await headers();
+  const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
   if (xkey !== reqApiKey) {
@@ -28,8 +29,9 @@ export const GET = async () => {
   try {
     await connectdb();
 
-    const classes = await ClassModel.find({})
-      .populate("createdBy", "fullName email") // optional → enrich with admin info
+    // This query will now work correctly
+    const classes = await ClassModel.find({ isActive: true })
+      .populate("createdBy", "fullName email")
       .sort({ createdAt: -1 })
       .lean();
 

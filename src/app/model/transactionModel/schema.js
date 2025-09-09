@@ -1,11 +1,15 @@
+// ✅ Import mongoose and destructure Schema, models, model
 import mongoose from 'mongoose';
-import CounterModel from '../counterDataModel/schema.js'; // adjust path if needed
+import CounterModel from '../counterDataModel/schema.js'; 
 
+// ✅ Destructure Schema from mongoose
 const { Schema, models, model } = mongoose;
 
+// Define the schema
 const TransactionSchema = new Schema(
   {
     transactionId: { type: String, unique: true }, // auto-generated TRXID001
+    // ✅ Use Schema.Types.ObjectId
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription', required: true },
     razorpayOrderId: { type: String, required: true },
@@ -22,6 +26,9 @@ const TransactionSchema = new Schema(
   },
   { timestamps: { createdAt: true, updatedAt: false } } // only createdAt
 );
+
+// Add index for userId
+TransactionSchema.index({ userId: 1 });
 
 // 🔹 Pre-save hook for transactionId auto-generation
 TransactionSchema.pre('save', async function (next) {
