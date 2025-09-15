@@ -5,6 +5,10 @@ import TransactionModel from "@/app/model/transactionModel/schema";
 import UserModel from "@/app/model/userDataModel/schema"; // Import UserModel
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
+import mongoose from "mongoose";
+
+// ✅ FIX: Import the missing Subscription model
+import SubscriptionModel from "@/app/model/subscriptionsDataModel/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -29,23 +33,25 @@ export const GET = async (req) => {
     await connectdb();
 
     const { searchParams } = new URL(req.url);
-    const firebaseUid = searchParams.get("userId"); // Now correctly named firebaseUid
+    const userId = searchParams.get("userId");
 
-    if (!firebaseUid) {
+    if (!userId) {
       return withCors(NextResponse.json(
         { success: false, message: "userId query param is required" },
         { status: 400 }
       ));
     }
 
-    // First, find the user by their Firebase UID to get their MongoDB _id
-    const user = await UserModel.findOne({ firebaseUid });
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return withCors(NextResponse.json({ success: false, message: "Invalid User ID format" }, { status: 400 }));
+    }
+    const user = await UserModel.findById(userId);
 
     if (!user) {
         return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
     }
 
-    // Then, use the user's _id to find transactions
+    // This query will now work correctly because SubscriptionModel is imported
     const transactions = await TransactionModel.find({ userId: user._id })
       .populate("subscriptionId", "name subscriptionId")
       .populate("userId", "fullName email")

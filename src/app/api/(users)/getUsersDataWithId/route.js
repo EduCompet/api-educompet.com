@@ -4,6 +4,7 @@ import {connectdb} from "@/app/database/mongodb";
 import UserModel from "@/app/model/userDataModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
+import mongoose from 'mongoose'; // Import mongoose
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +29,22 @@ export const GET = async (req) => {
     await connectdb();
 
     const { searchParams } = new URL(req.url);
-    const firebaseUid = searchParams.get("Id");
+    const userId = searchParams.get("Id");
 
-    if (!firebaseUid) {
+    if (!userId) {
       return withCors(NextResponse.json(
-        { success: false, message: "Valid Id is required." },
+        { success: false, message: "A valid user ID is required." },
         { status: 400 }
       ));
     }
+    
+    // ✅ FIX: Validate the ID format before querying
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return withCors(NextResponse.json({ success: false, message: "Invalid user ID format." }, { status: 400 }));
+    }
 
-    const user = await UserModel.findOne({ firebaseUid: firebaseUid }).select("-password -__v").lean();
+    // ✅ FIX: Find user by their MongoDB _id instead of firebaseUid
+    const user = await UserModel.findById(userId).select("-password -__v").lean();
 
     if (!user) {
       return withCors(NextResponse.json(

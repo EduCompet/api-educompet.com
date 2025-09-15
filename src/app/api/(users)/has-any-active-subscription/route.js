@@ -5,7 +5,6 @@ import UserModel from "@/app/model/userDataModel/schema";
 import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
 import { headers } from "next/headers";
 import { handleOptions, withCors } from "@/app/utils/cors";
-import admin from "@/app/utils/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +13,18 @@ export async function OPTIONS() {
 }
 
 export const GET = async (req) => {
-  const authToken = (await headers()).get("authorization")?.split("Bearer ")[1];
+  // ✅ FIX: Using custom session token instead of Firebase token
+  const sessionToken = (await headers()).get("authorization")?.split("Bearer ")[1];
 
-  if (!authToken) {
+  if (!sessionToken) {
     return withCors(NextResponse.json({ message: "Unauthorized" }, { status: 401 }));
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(authToken);
-    const { uid } = decodedToken;
-
     await connectdb();
 
-    const user = await UserModel.findOne({ firebaseUid: uid });
+    // ✅ FIX: Find user by sessionToken
+    const user = await UserModel.findOne({ sessionToken: sessionToken });
     if (!user) {
       return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
     }

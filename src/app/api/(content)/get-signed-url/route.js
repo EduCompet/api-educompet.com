@@ -5,62 +5,83 @@ import { bucket } from "@/app/service/storageConnection/storageConnection";
 import UserModel from "@/app/model/userDataModel/schema";
 import UserSubscriptionModel from "@/app/model/userSubscriptionModel/schema";
 import { headers } from "next/headers";
-import { handleOptions, withCors } from "@/app/utils/cors";
+import { withCors, handleOptions } from "@/app/utils/cors";
+import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
 const xkey = process.env.API_AUTH_KEY;
 
-export async function OPTIONS() {
-  return handleOptions();
-}
+export async function OPTIONS() { return handleOptions(); }
 
 export const POST = async (req) => {
-  const headerList = await headers();
-  const reqApiKey = headerList.get("x-api-key");
-
+  const reqApiKey = (await headers()).get("x-api-key");
   if (xkey !== reqApiKey) {
     return withCors(NextResponse.json({ success: false, message: "Invalid API Auth Key" }, { status: 401 }));
   }
 
   try {
     await connectdb();
-    const { firebaseUid, classId, filePath } = await req.json();
+    
+    // ✅ FIX: Expect `userId` from the app instead of `firebaseUid`
+    const { userId, classId, filePath, generalSubjectId } = await req.json();
 
-    if (!firebaseUid || !classId || !filePath) {
-      return withCors(NextResponse.json({ success: false, message: "firebaseUid, classId, and filePath are required." }, { status: 400 }));
+    if (!userId || !filePath) {
+      return withCors(NextResponse.json({ success: false, message: "userId and filePath are required." }, { status: 400 }));
     }
 
-    // 1. Find the user by their Firebase UID
-    const user = await UserModel.findOne({ firebaseUid });
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return withCors(NextResponse.json({ success: false, message: "Invalid User ID format." }, { status: 400 }));
+    }
+
+    // ✅ FIX: Find the user by their MongoDB `_id`
+    const user = await UserModel.findById(userId);
     if (!user) {
       return withCors(NextResponse.json({ success: false, message: "User not found" }, { status: 404 }));
     }
 
-    // 2. Check if the user has an active subscription for the requested class
-    const userSubDoc = await UserSubscriptionModel.findOne({ userId: user._id });
+    const userSubDoc = await UserSubscriptionModel.findOne({ userId: user._id })
+      .populate('subscriptions.subscriptionId', 'isUniversal');
+
     if (!userSubDoc || !userSubDoc.subscriptions) {
       return withCors(NextResponse.json({ success: false, message: "You do not have an active subscription." }, { status: 403 }));
     }
 
     const now = new Date();
-    const hasActiveSubForClass = userSubDoc.subscriptions.some(sub =>
-      sub.classId.toString() === classId &&
-      sub.status === 'active' &&
-      sub.expireDate > now
-    );
+    let isAuthorized = false;
 
-    if (!hasActiveSubForClass) {
-      return withCors(NextResponse.json({ success: false, message: "Your subscription for this class has expired or is inactive." }, { status: 403 }));
+    const hasAnyActiveSub = userSubDoc.subscriptions.some(s => s.status === 'active' && s.expireDate > now);
+
+    // This logic now correctly handles both general and class-specific content
+    if (generalSubjectId) {
+        // For general subjects, just check if the user has ANY active subscription
+        if (hasAnyActiveSub) {
+            isAuthorized = true;
+        }
+    } else {
+        // For class-specific content, check for a universal plan or a plan for that specific class
+        for (const sub of userSubDoc.subscriptions) {
+            const isActive = sub.status === 'active' && sub.expireDate > now;
+            if (isActive) {
+                if (sub.subscriptionId && sub.subscriptionId.isUniversal) {
+                    isAuthorized = true;
+                    break; 
+                }
+                if (classId && sub.classId && sub.classId.toString() === classId) {
+                    isAuthorized = true;
+                    break;
+                }
+            }
+        }
     }
 
-    // 3. If authorized, generate a signed URL for the file
+    if (!isAuthorized) {
+      return withCors(NextResponse.json({ success: false, message: "You are not subscribed to this content." }, { status: 403 }));
+    }
+    
     const file = bucket.file(filePath);
-    const expiration = Date.now() + 15 * 60 * 1000; // URL expires in 15 minutes
-
-    const [signedUrl] = await file.getSignedUrl({
-      action: "read",
-      expires: expiration,
-    });
+    // Set URL to expire in 15 minutes for security
+    const expiration = Date.now() + 15 * 60 * 1000;
+    const [signedUrl] = await file.getSignedUrl({ action: "read", expires: expiration });
 
     return withCors(NextResponse.json({ success: true, url: signedUrl }, { status: 200 }));
 

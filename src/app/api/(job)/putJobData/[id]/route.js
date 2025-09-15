@@ -67,7 +67,11 @@ export const PUT = async (req, { params }) => {
     if (qualification) updatedData.qualification = qualification;
     if (vacancy) updatedData.vacancy = vacancy;
     if (category) updatedData.category = category;
-    if (isActive) updatedData.isActive = isActive;
+    
+    // ✅ FIX: Check if isActive is a boolean, including false
+    if (typeof isActive === "boolean") {
+      updatedData.isActive = isActive;
+    }
 
     if (Object.keys(updatedData).length === 0) {
       return withCors(
