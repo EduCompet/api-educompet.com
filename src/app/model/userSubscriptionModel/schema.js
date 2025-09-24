@@ -10,7 +10,8 @@ const UserSubscriptionItemSchema = new Schema(
       ref: "Subscription",
       required: true,
     },
-    classId: { type: Schema.Types.ObjectId, ref: "Class", required: true },
+    // ✅ FIX: Set classId to not be required
+    classId: { type: Schema.Types.ObjectId, ref: "Class", required: false },
     startDate: { type: Date, required: true },
     expireDate: { type: Date, required: true },
     status: {
@@ -20,6 +21,11 @@ const UserSubscriptionItemSchema = new Schema(
     },
     durationMonths: { type: Number, required: true },
     amountPaid: { type: Number, required: true },
+    transaction_Id: {
+      type: Schema.Types.ObjectId,
+      ref: "Transaction",
+      required: false,
+    },
   },
   { _id: false }
 );

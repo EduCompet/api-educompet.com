@@ -1,66 +1,64 @@
 // src/app/model/userDataModel/schema.js
-
 import mongoose from 'mongoose';
 import CounterModel from '../counterDataModel/schema';
+import bcrypt from 'bcryptjs';
 
 const { Schema, models, model } = mongoose;
 
 const UserSchema = new Schema({
-  googleId: { type: String, required: false },
-  firebaseUid: { type: String, required: true, unique: true },
-  fullName: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  phone: { type: String, required: false, unique: true, sparse: true },
-  password: { type: String, required: false },
-  dob: { type: Date, required: false },
-  // ✅ Make sure studentId is properly configured
-  studentId: { type: String, unique: true, sparse: true },
-  school: { type: String, required: false },
-  photoUrl: { type: String, required: false },
-  fcmToken: { type: String, required: false },
-  referralId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
-  referralCode: { type: String, unique: true, sparse: true },
-  isLegalAccept: { type: Boolean, default: false },
-  isTerminated: { type: Boolean, default: false },
-  isActive: { type: Boolean, default: true },
-  lastLogin: { type: Date, default: null },
+  // ✅ FIX: Removed the firebaseUid field entirely. This is the definitive fix for the E11000 error on signup.
+  fullName:   { type: String, required: true, trim: true },
+  email:      { type: String, required: true, unique: true,trim: true, lowercase: true },
+  password:   { type: String, required: false, trim: true },
+  phone:      { type: String, unique: true, sparse: true, default: null, trim: true },
+  dob:        { type: Date, required: false },
+  studentID:    { type: String, unique: true, required: true },
+  referralCode: { type: String, unique: true, required: true },
+  referralId: { type: String, required: false, default: null, trim: true },
+  photoUrl:  { type: String, required: false },
+  fcmToken:  { type: String, required: false },
+  lastLogin: { type: Date, default: Date.now },
+  sessionToken: { type: String, required: false },
+  theme: {type: String, enum: ['system', 'light', 'dark'], default: 'system'},
 }, { timestamps: true });
 
-// ✅ Enhanced pre-save hook with better error handling
-UserSchema.pre('save', async function (next) {
-  // Only generate IDs for new documents that don't already have them
+UserSchema.pre('validate', async function (next) {
   if (this.isNew) {
     try {
-      // Generate studentId if not provided
-      if (!this.studentId) {
+      if (!this.studentID) {
         const counter = await CounterModel.findOneAndUpdate(
-          { name: 'studentId' },
+          { name: 'studentID' },
           { $inc: { value: 1 } },
           { new: true, upsert: true }
         );
-
-        if (!counter) {
-          throw new Error('Could not retrieve or create the studentId counter.');
-        }
-
-        const sequenceNumber = counter.value.toString().padStart(3, '0');
-        this.studentId = `STUID${sequenceNumber}`;
+        if (!counter) throw new Error('Could not create studentID counter.');
+        this.studentID = `STUID${counter.value.toString().padStart(3, '0')}`;
       }
 
-      // Generate referralCode if not provided
-      if (!this.referralCode && this.fullName) {
-        const prefix = 'EC';
+      if (!this.referralCode) {
+        if (!this.fullName) throw new Error("Cannot generate referral code without fullName.");
         const namePart = this.fullName.substring(0, 3).toUpperCase();
-        const randomNum = Math.floor(1000 + Math.random() * 9000);
-        this.referralCode = `${prefix}${namePart}${randomNum}`;
+        this.referralCode = `EC${namePart}${Math.floor(1000 + Math.random() * 9000)}`;
       }
+      next();
     } catch (err) {
-      console.error("Error in pre-save hook:", err);
       return next(err);
     }
+  } else {
+    next();
+  }
+});
+
+UserSchema.pre('save', async function (next) {
+  if (this.isModified('password') && this.password) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
   next();
 });
+
+UserSchema.methods.comparePassword = function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 
 const UserModel = models.User || model('User', UserSchema);
 export default UserModel;

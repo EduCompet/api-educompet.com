@@ -27,6 +27,7 @@ const SubscriptionSchema = new Schema(
     name: { type: String, required: true }, 
     description: { type: String, required: false },
     isActive: { type: Boolean, default: true },
+    isUniversal: { type: Boolean, default: false }, // New field for the All-Access Pass
     isJobUpdate: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
     pricingPlans: { type: [PricingPlanSchema], required: true },
@@ -48,6 +49,10 @@ SubscriptionSchema.pre('save', async function (next) {
       return next(err);
     }
   }
+  // Ensure classId is null if the plan is universal
+  if (this.isUniversal) {
+      this.classId = undefined;
+  }
   next();
 });
 
