@@ -16,12 +16,12 @@ export const GET = async (req) => {
   const headerList = await headers();
   const reqApiKey = headerList.get("x-api-key");
 
-  if (xkey !== reqApiKey) {
-    return NextResponse.json(
+if (xkey !== reqApiKey) {
+    return withCors(NextResponse.json(
       { success: false, message: "Invalid API Auth Key" },
       { status: 401 }
-    );
-  }
+    ));
+}
 
   try {
     await connectdb();
