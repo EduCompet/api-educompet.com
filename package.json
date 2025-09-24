@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",
+    "bcryptjs": "^3.0.2",
     "cross-env": "^10.0.0",
     "dotenv": "^17.2.2",
     "firebase-admin": "^13.5.0",
