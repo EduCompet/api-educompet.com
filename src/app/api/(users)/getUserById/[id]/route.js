@@ -1,0 +1,57 @@
+// src/app/api/(users)/getUserById/[id]/route.js
+import { NextResponse } from "next/server";
+import { connectdb } from "@/app/database/mongodb";
+import UserModel from "@/app/model/userDataModel/schema";
+import { headers } from "next/headers";
+import { handleOptions, withCors } from "@/app/utils/cors";
+import mongoose from "mongoose";
+
+export const dynamic = "force-dynamic";
+
+const xkey = process.env.API_AUTH_KEY;
+
+export async function OPTIONS() {
+  return handleOptions();
+}
+
+export const GET = async (req, { params }) => {
+  const headerList = await headers();
+  const reqApiKey = headerList.get("x-api-key");
+
+  if (xkey !== reqApiKey) {
+    return withCors(
+      NextResponse.json({ success: false, message: "Invalid API Auth Key" }, { status: 401 })
+    );
+  }
+
+  try {
+    await connectdb();
+    const { id } = params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return withCors(
+        NextResponse.json({ success: false, message: "A valid user ID is required." }, { status: 400 })
+      );
+    }
+
+    // Find user by ID and exclude sensitive fields
+    const user = await UserModel.findById(id)
+      .select("-password -phone -__v -fcmToken") // Exclude phone number as requested
+      .lean();
+
+    if (!user) {
+      return withCors(
+        NextResponse.json({ success: false, message: "User not found." }, { status: 404 })
+      );
+    }
+
+    return withCors(
+      NextResponse.json({ success: true, message: "User fetched successfully.", data: user }, { status: 200 })
+    );
+  } catch (error) {
+    console.error("Error fetching user by ID:", error);
+    return withCors(
+      NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 })
+    );
+  }
+};

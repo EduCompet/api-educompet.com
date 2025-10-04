@@ -1,0 +1,41 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.17.0",
+    "bcryptjs": "^3.0.2",
+    "cross-env": "^10.0.0",
+    "dotenv": "^17.2.2",
+    "emitter": "^0.0.2",
+    "firebase-admin": "^13.5.0",
+    "formidable": "^3.5.4",
+    "fs": "^0.0.1-security",
+    "html-pdf-node": "^1.0.7",
+    "mammoth": "^1.10.0",
+    "mongoose": "^8.18.0",
+    "next": "15.5.2",
+    "nodemailer": "^7.0.6",
+    "pdfjs-dist": "^5.4.149",
+    "razorpay": "^2.9.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-pdf": "^10.1.0",
+    "stream": "^0.0.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "concurrently": "^9.2.1",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.2",
+    "tailwindcss": "^4"
+  }
+}
