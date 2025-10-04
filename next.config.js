@@ -5,24 +5,45 @@
 //   // DO NOT add `output: "export"` or any static export settings
 // };
 
-// module.exports = nextConfig;
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use the 'standalone' output mode. 
-  // This minimizes the required files for deployment and 
-  // forces a production server build that is ideal for server/API-only deployments.
+  // CRITICAL: Forces Next.js to build a minimal, self-contained server application.
+  // This is the key setting to resolve the "<Html>" prerendering error 
+  // and is recommended for API-only backends on platforms like AWS Amplify.
   output: 'standalone',
 
-  // This prevents Next.js from aggressively trying to statically export pages 
-  // during the build step, which is what is causing the /404 error.
+  // Configuration for Next.js features, specifically targeting your API-only project structure.
   experimental: {
-    // This flag is often necessary in API-only apps to prevent errors when 
-    // the root 'app/page.js' is missing or simplified.
+    // Suppresses a runtime error when the root 'app/page.js' (frontend entry point) 
+    // is missing or minimal, which is likely in an API-only project.
     missingSuspenseWithCSRBailout: false,
-    
-    // Explicitly define external packages to prevent them from being bundled, 
-    // which can also help with build errors related to native modules (like 'sharp' or 'puppeteer').
-    serverComponentsExternalPackages: ['mongoose', 'mongodb', 'firebase-admin', 'puppeteer', 'sharp'],
+
+    // RECOMMENDED: Explicitly list heavy or legacy server-side Node.js packages.
+    // This tells Next.js's bundler (Webpack) to treat them as external packages 
+    // to be loaded at runtime, which prevents complex module logic (like handlebars'
+    // 'require.extensions') from breaking the build process.
+    serverComponentsExternalPackages: [
+        'mongoose', 
+        'mongodb', 
+        'firebase-admin', 
+        'puppeteer', 
+        'sharp',
+        'html-pdf-node' // Including your specific problematic module
+    ],
+  },
+  
+  // OPTIONAL: Advanced Webpack configuration to explicitly exclude problematic modules 
+  // and handle the 'require.extensions' warning, which may prevent future issues.
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+        // Exclude these modules from the serverless bundle if they contain platform-specific 
+        // binaries or confusing Node.js logic like 'require.extensions'.
+        config.externals = [
+            'html-pdf-node',
+            ...config.externals,
+        ];
+    }
+    return config;
   },
 };
 
