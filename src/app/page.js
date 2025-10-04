@@ -123,6 +123,7 @@ export default async function Home() {
     <div className="font-sans min-h-screen p-8">
       <h1>Server Rendered Page</h1>
       <p>Current server time: {time}</p>
+      <h1>Build Success</h1>
     </div>
   );
 }
